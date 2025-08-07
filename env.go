@@ -29,7 +29,28 @@ func loadStructConfig(v reflect.Value) error {
 	t := v.Type()
 	for i := range t.NumField() {
 		field := t.Field(i)
+		fieldValue := v.Field(i)
 
+		// Check if the field is a struct, a pointer to a struct, or a primitive type with tags.
+		// Nested structs don't have env tags, but their fields do.
+		if fieldValue.Kind() == reflect.Struct {
+			if err := loadStructConfig(fieldValue); err != nil {
+				return fmt.Errorf("failed to load nested struct field %s: %v", field.Name, err)
+			}
+			continue
+		}
+
+		if fieldValue.Kind() == reflect.Ptr && fieldValue.Type().Elem().Kind() == reflect.Struct {
+			if fieldValue.IsNil() {
+				fieldValue.Set(reflect.New(fieldValue.Type().Elem()))
+			}
+			if err := loadStructConfig(fieldValue.Elem()); err != nil {
+				return fmt.Errorf("failed to load nested struct field %s: %v", field.Name, err)
+			}
+			continue
+		}
+
+		// Only process fields with 'env' or 'default' tags here.
 		envVar := field.Tag.Get("env")
 		defVal := field.Tag.Get("default")
 
@@ -50,7 +71,6 @@ func loadStructConfig(v reflect.Value) error {
 			return fmt.Errorf("environment variable %s is not set", envVar)
 		}
 
-		fieldValue := v.Field(i)
 		if !fieldValue.CanSet() {
 			return fmt.Errorf("field %s is not settable", field.Name)
 		}
@@ -76,26 +96,6 @@ func loadStructConfig(v reflect.Value) error {
 			}
 
 			fieldValue.SetBool(boolValue)
-
-		case reflect.Struct:
-			// If the field is a struct, recurse into it
-			if fieldValue.CanAddr() {
-				if err := loadStructConfig(fieldValue); err != nil {
-					return fmt.Errorf("failed to load nested struct field %s: %v", field.Name, err)
-				}
-			}
-
-		case reflect.Ptr:
-			// If the field is a pointer to a struct, dereference it
-			if fieldValue.IsNil() {
-				fieldValue.Set(reflect.New(fieldValue.Type().Elem()))
-			}
-
-			if fieldValue.Elem().Kind() == reflect.Struct {
-				if err := loadStructConfig(fieldValue.Elem()); err != nil {
-					return fmt.Errorf("failed to load nested struct field %s: %v", field.Name, err)
-				}
-			}
 
 		default:
 			return fmt.Errorf("unsupported type %s for field %s", fieldValue.Kind(), field.Name)

@@ -11,6 +11,9 @@ func TestLoadEnv(t *testing.T) {
 		Boolean        bool   `env:"BOOLEAN_VALUE"`
 		DefaultString  string `env:"DEFAULT_STRING" default:"default string"`
 		UnqottedString string `env:"QUOTTED_STRING"`
+		SubStruct      struct {
+			StringValueInSubstruct string `env:"STRING_VALUE_IN_SUBSTRUCT"`
+		}
 	}
 
 	var tc TestConf
@@ -19,6 +22,7 @@ func TestLoadEnv(t *testing.T) {
 	t.Setenv("INT_VALUE", "42")
 	t.Setenv("BOOLEAN_VALUE", "true")
 	t.Setenv("QUOTTED_STRING", "\"noquotes\"")
+	t.Setenv("STRING_VALUE_IN_SUBSTRUCT", "substruct")
 
 	if err := LoadEnv(&tc); err != nil {
 		t.Error("Error while loading environment: ", err)
@@ -42,5 +46,9 @@ func TestLoadEnv(t *testing.T) {
 
 	if tc.UnqottedString != "noquotes" {
 		t.Errorf("Quotes not removed, want: noquotes got:%s", tc.UnqottedString)
+	}
+
+	if tc.SubStruct.StringValueInSubstruct != "substruct" {
+		t.Errorf("Value in nested structtures not convfigured, want: substruct got:%s", tc.SubStruct.StringValueInSubstruct)
 	}
 }
